@@ -1,5 +1,9 @@
-# BhuDristi-prediction-of-landslides
-AI-Based Early Warning and Landslide Risk Monitoring System for North-East India.
+# BhuDrishti 🏔️
+**AI-Based Landslide Early Warning & Risk Monitoring System — NER (North-East India)**  
+Smart India Hackathon 2026 | Team InnoVision
+
+---
+
 ## Project Structure
 
 ```

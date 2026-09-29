@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://bhudrishti-backend-9mrh.onrender.com/api/:path*"
+    }
+  ]
+}

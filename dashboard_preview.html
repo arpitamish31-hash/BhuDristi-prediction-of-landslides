@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>BhuDrishti — AI Landslide Early Warning System</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  /* Vivid light mode — colourful cards on a soft background */
+  --bg:linear-gradient(145deg,#fdf6f0 0%,#f0f8ff 40%,#f5f0ff 70%,#f0fff8 100%);
+  --text:#1a1040;
+  --muted:#5a5475;
+  --dim:#9890b0;
+  /* Earthy accent colours */
+  --terracotta:#c0541a;
+  --amber:#d4860a;
+  --olive:#5a7020;
+  --teal:#0e7a6e;
+  --sky:#1060b0;
+  --rust:#a03020;
+  /* Risk colours */
+  --low:#1a7a32;--moderate:#b86000;--high:#a02818;--critical:#5e28a0;
+  --low-bg:#e0f5e8;--mod-bg:#fef0d0;--high-bg:#fce8e4;--crit-bg:#ece0fa;
+  --low-txt:#0e4820;--mod-txt:#6a3800;--high-txt:#6a1808;--crit-txt:#320e68;
+  --r:16px;--r2:10px;
+  --shadow:0 6px 28px #1a104025;--shadow2:0 3px 14px #1a104018;--shadowlg:0 10px 44px #1a104030;
+}
+html,body{height:100%;background:var(--bg);background-attachment:fixed;color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:14px;overflow-x:hidden}
+body::before{
+  content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 70% 50% at 5% 5%,   #ff8c4220,transparent 50%),
+    radial-gradient(ellipse 55% 40% at 95% 5%,  #a78bfa20,transparent 50%),
+    radial-gradient(ellipse 45% 40% at 95% 95%, #34d39918,transparent 50%),
+    radial-gradient(ellipse 55% 45% at 5% 95%,  #fbbf2420,transparent 50%),
+    radial-gradient(ellipse 30% 30% at 50% 50%, #60a5fa14,transparent 50%);
+}
+.app{position:relative;z-index:1;display:flex;flex-direction:column;min-height:100vh}
+
+/* ══ HEADER — warm earthy gradient, NOT pink ══ */
+header{
+  background:linear-gradient(135deg,#7c2d12 0%,#c0541a 30%,#d97706 60%,#4a7c20 100%);
+  padding:.9rem 2rem;
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;
+  position:sticky;top:0;z-index:100;
+  box-shadow:0 4px 24px #7c2d1250;
+}
+.brand{display:flex;align-items:center;gap:.9rem}
+.brand-icon{
+  width:50px;height:50px;border-radius:14px;
+  background:linear-gradient(135deg,#fff3,#fff1);
+  backdrop-filter:blur(8px);border:2px solid #ffffff50;
+  display:flex;align-items:center;justify-content:center;
+  font-size:0;position:relative;overflow:hidden;
+  animation:iconPulse 3s ease-in-out infinite;
+}
+/* Custom eye/mountain SVG icon for BhuDrishti (भू = earth, दृष्टि = vision/eye) */
+.brand-icon::before{
+  content:'';position:absolute;inset:6px;
+  background:url("data:image/svg+xml,%3Csvg viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cellipse cx='20' cy='26' rx='16' ry='6' fill='%23ffffff55'/%3E%3Cpolygon points='20,4 32,26 8,26' fill='white' opacity='.9'/%3E%3Cpolygon points='20,10 28,26 12,26' fill='%23ffffff60'/%3E%3Cellipse cx='20' cy='18' rx='5' ry='4' fill='none' stroke='white' stroke-width='2'/%3E%3Ccircle cx='20' cy='18' r='2' fill='white'/%3E%3C/svg%3E") center/contain no-repeat;
+}
+@keyframes iconPulse{0%,100%{box-shadow:0 0 0 0 #ffffff30}50%{box-shadow:0 0 0 10px #ffffff00}}
+.brand-title{font-size:1.6rem;font-weight:900;color:#fff;letter-spacing:-.02em;text-shadow:0 2px 8px #0005}
+.brand-sub{font-size:.7rem;color:#ffffffcc;margin-top:.1rem;letter-spacing:.04em;font-weight:500}
+.header-right{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
+.live-badge{
+  display:flex;align-items:center;gap:.4rem;
+  background:#ffffff22;border:1px solid #ffffff45;
+  border-radius:999px;padding:.3rem .85rem;font-size:.75rem;color:#fff;font-weight:600;
+}
+.live-dot{width:8px;height:8px;border-radius:50%;background:#a8e6b0;box-shadow:0 0 6px #a8e6b0;animation:ldot 1.5s infinite}
+@keyframes ldot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(1.3)}}
+.hdr-time{font-size:.72rem;color:#ffffffcc;font-weight:500}
+.btn-hdr{
+  background:#ffffff22;border:1px solid #ffffff45;color:#fff;
+  padding:.4rem 1rem;border-radius:8px;cursor:pointer;font-size:.8rem;font-weight:600;
+  font-family:'Inter',sans-serif;transition:all .2s;
+}
+.btn-hdr:hover{background:#ffffff38}
+
+/* ══ ALERT BANNER ══ */
+.alert-banner{
+  background:linear-gradient(135deg,#fdf0e8,#fdf6ec);
+  border-bottom:2px solid #e8c4a0;padding:.65rem 2rem;
+}
+.alert-header{display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;font-size:.72rem;color:#8b2a10;text-transform:uppercase;letter-spacing:.08em;font-weight:800}
+.pulse-ring{position:relative;width:10px;height:10px;flex-shrink:0}
+.pulse-ring::before,.pulse-ring::after{content:'';position:absolute;inset:0;border-radius:50%;background:#b83020}
+.pulse-ring::before{animation:rpl 1.5s infinite}
+.pulse-ring::after{animation:rpl 1.5s .4s infinite}
+@keyframes rpl{0%{transform:scale(1);opacity:1}100%{transform:scale(2.5);opacity:0}}
+.alert-list{display:flex;flex-direction:column;gap:.3rem}
+.alert-item{display:flex;align-items:center;gap:.65rem;padding:.35rem .75rem;border-radius:8px;font-size:.78rem;transition:background .2s;color:var(--text)}
+.alert-item:hover{background:#fdecea}
+.sms-tag{margin-left:auto;font-size:.68rem;font-weight:700;background:#e8f5ea;color:#1a5228;border:1px solid #a8d8b0;border-radius:999px;padding:.15rem .6rem;white-space:nowrap}
+
+/* ══ TABS ══ */
+nav.tabs{
+  background:#fff8f0;border-bottom:2px solid #f0c8a0;
+  padding:0 2rem;display:flex;gap:0;overflow-x:auto;scrollbar-width:none;
+}
+nav.tabs::-webkit-scrollbar{display:none}
+.tab{
+  padding:.75rem 1.2rem;background:none;border:none;border-bottom:3px solid transparent;
+  color:#8a6040;cursor:pointer;font-size:.82rem;font-weight:600;
+  font-family:'Inter',sans-serif;white-space:nowrap;transition:all .2s;
+  display:flex;align-items:center;gap:.4rem;
+}
+.tab:hover{color:#c0541a;background:#fff0e4}
+.tab.active{color:#c0541a;border-bottom-color:#c0541a;font-weight:800;background:#fff0e4}
+
+/* ══ MAIN ══ */
+.main{flex:1;padding:1.5rem 2rem;max-width:1440px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:1.5rem}
+.section{display:none;flex-direction:column;gap:1.5rem}
+.section.visible{display:flex}
+
+/* ══ CARD — vivid coloured backgrounds, NOT white ══ */
+.card{
+  background:linear-gradient(145deg,#fffbf5,#fff8ee);
+  border:1.5px solid #f0d8b8;border-radius:var(--r);padding:1.25rem;
+  box-shadow:var(--shadow2);transition:all .25s;
+}
+.card:hover{box-shadow:var(--shadow);border-color:#e0b888;transform:translateY(-1px)}
+.card-title{font-size:.78rem;font-weight:800;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;color:#8a5020;text-transform:uppercase;letter-spacing:.08em}
+.ct-icon{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.9rem}
+
+/* ══ STAT CARDS — each one a vivid gradient colour ══ */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:1rem}
+.stat-card{
+  border:none;border-radius:var(--r);
+  padding:1.4rem 1.2rem;text-align:center;transition:all .3s;
+  position:relative;overflow:hidden;cursor:default;
+  background:linear-gradient(145deg,var(--c1),var(--c2));
+  box-shadow:0 6px 24px var(--c1,#c0541a)45;
+}
+.stat-card::before{content:'';position:absolute;top:-20px;right:-20px;width:90px;height:90px;border-radius:50%;background:#ffffff18}
+.stat-card::after{content:'';position:absolute;bottom:-30px;left:-10px;width:70px;height:70px;border-radius:50%;background:#ffffff10}
+.stat-card:hover{transform:translateY(-5px) scale(1.02);box-shadow:0 12px 36px var(--c1,#c0541a)60}
+.stat-num{font-size:2.6rem;font-weight:900;line-height:1;margin-bottom:.3rem;color:#fff;text-shadow:0 2px 8px #0003}
+.stat-label{font-size:.7rem;color:#ffffffdd;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.stat-icon-wrap{width:48px;height:48px;border-radius:14px;margin:0 auto .9rem;display:flex;align-items:center;justify-content:center;font-size:1.5rem;background:#ffffff25;box-shadow:0 4px 12px #0002}
+.stat-delta{font-size:.68rem;margin-top:.4rem;font-weight:600;color:#ffffffcc}
+.delta-up::before{content:'↑ '}.delta-dn::before{content:'↓ '}
+
+/* ══ CHARTS ══ */
+.charts-row{display:grid;grid-template-columns:3fr 2fr;gap:1rem}
+@media(max-width:900px){.charts-row{grid-template-columns:1fr}}
+
+/* ══ MAP ══ */
+#map{height:450px;border-radius:var(--r2);border:1.5px solid var(--border)}
+.map-legend{display:flex;gap:1.2rem;margin-top:.85rem;flex-wrap:wrap}
+.leg-item{display:flex;align-items:center;gap:.45rem;font-size:.75rem;color:var(--muted);font-weight:500}
+.leg-dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+
+/* ══ FORM ══ */
+.form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:.85rem;margin-bottom:1.2rem}
+.form-field{display:flex;flex-direction:column;gap:.35rem}
+.form-field label{font-size:.7rem;color:#8a5020;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.form-field input,.form-field select{
+  background:linear-gradient(135deg,#fff8f0,#fffaf5);
+  border:1.5px solid #e8c8a0;border-radius:9px;
+  padding:.52rem .8rem;color:var(--text);font-size:.85rem;font-family:'Inter',sans-serif;transition:all .2s;
+}
+.form-field input:focus,.form-field select:focus{outline:none;border-color:#c0541a;box-shadow:0 0 0 3px #c0541a20;background:#fff}
+
+/* ══ BUTTONS ══ */
+.btn{padding:.5rem 1.1rem;border-radius:9px;border:none;cursor:pointer;font-size:.83rem;font-weight:700;font-family:'Inter',sans-serif;transition:all .2s;white-space:nowrap}
+.btn-primary{background:linear-gradient(135deg,#8b3a10,#c0541a);color:#fff;box-shadow:0 4px 14px #c0541a30}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px #c0541a48}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn-ghost{background:var(--surface);color:var(--muted);border:1.5px solid var(--border)}
+.btn-ghost:hover{background:var(--surface2);color:var(--text);border-color:var(--border2)}
+.btn-sm{padding:.3rem .7rem;font-size:.74rem}
+.btn-teal{background:linear-gradient(135deg,#1a7a6e,#1a6fa0);color:#fff;box-shadow:0 4px 14px #1a7a6e30}
+.btn-teal:hover{transform:translateY(-1px);box-shadow:0 6px 20px #1a7a6e48}
+.btn-olive{background:linear-gradient(135deg,#4a5a22,#6b7c3a);color:#fff;box-shadow:0 4px 14px #6b7c3a30}
+
+/* ══ BADGES ══ */
+.badge{display:inline-flex;align-items:center;gap:.3rem;padding:.25rem .7rem;border-radius:999px;font-size:.7rem;font-weight:700}
+.badge-terra{background:#fdeee6;color:#8b3a10;border:1px solid #f0c4a8}
+.badge-amber{background:#fef6e0;color:#7a4a00;border:1px solid #f0d888}
+.badge-teal{background:#e0f4f0;color:#0f5a50;border:1px solid #90d4c8}
+.badge-olive{background:#eef2e0;color:#3a4a18;border:1px solid #b8cc88}
+.badge-sky{background:#e0f0fa;color:#0a4a78;border:1px solid #88c4e8}
+
+/* ══ SECTION HDR ══ */
+.sec-hdr{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:.25rem}
+.sec-hdr h2{font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+
+/* ══ RESULT BOX ══ */
+.result-box{margin-top:1.5rem;padding:1.5rem;border-radius:var(--r);border:none;box-shadow:var(--shadow);animation:fsld .4s ease;background:linear-gradient(145deg,var(--rb1,#fff8f0),var(--rb2,#fff3e0))}
+@keyframes fsld{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.result-hdr{display:flex;align-items:center;gap:1rem;margin-bottom:1.2rem}
+.result-emoji-box{width:64px;height:64px;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:2.2rem;flex-shrink:0;background:linear-gradient(135deg,var(--rc1,#c0541a),var(--rc2,#d4860a));box-shadow:0 6px 20px var(--rc1,#c0541a)40}
+.result-cat{font-size:1.6rem;font-weight:900;background:linear-gradient(135deg,var(--rc1,#c0541a),var(--rc2,#d4860a));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.result-sub{font-size:.75rem;color:var(--muted);margin-top:.2rem}
+.conf-badge{margin-left:auto;padding:.35rem .9rem;border-radius:999px;font-size:.78rem;font-weight:700;background:linear-gradient(135deg,var(--rc1,#c0541a),var(--rc2,#d4860a));color:#fff;box-shadow:0 3px 10px var(--rc1,#c0541a)30}
+.conf-track{height:8px;background:#e8e0d8;border-radius:999px;overflow:hidden;margin-bottom:1.2rem}
+.conf-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--rc1,#c0541a),var(--rc2,#d4860a));transition:width .6s ease}
+.prob-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:.65rem}
+.prob-card{background:linear-gradient(145deg,#fff8f0,#fff3e0);border:1.5px solid #e8c8a0;border-radius:11px;padding:.9rem;text-align:center;transition:all .2s;box-shadow:var(--shadow2)}
+.prob-card.hi{background:linear-gradient(145deg,var(--rc1,#c0541a),var(--rc2,#d4860a));border-color:transparent;box-shadow:0 6px 20px var(--rc1,#c0541a)40}
+.prob-card.hi .prob-pct{color:#fff !important}.prob-card.hi .prob-nm{color:#ffffffcc !important}
+.prob-pct{font-size:1.35rem;font-weight:900;margin-bottom:.2rem}
+.prob-nm{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+
+/* ══ FORECAST timeline ══ */
+.fc-controls{display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end;margin-bottom:1.2rem}
+.fc-summary{display:flex;align-items:center;gap:1rem;padding:1rem 1.25rem;border-radius:var(--r2);margin-bottom:1.2rem;font-size:.88rem;animation:fsld .3s ease}
+.fc-icon{font-size:2rem;flex-shrink:0}
+.fc-alert{background:linear-gradient(135deg,#fce4e0,#fdf0e4);border:2px solid #f0a090;color:#7a1808}
+.fc-safe{background:linear-gradient(135deg,#e0f5e8,#e8fff0);border:2px solid #80d098;color:#0e4820}
+.timeline{display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.5rem}
+.tl-item{
+  background:linear-gradient(145deg,#fff8f0,#fff3e4);
+  border:1.5px solid #e8c8a0;border-radius:9px;padding:.45rem .5rem;text-align:center;min-width:52px;
+  cursor:default;transition:all .2s;position:relative;overflow:hidden;box-shadow:var(--shadow2);
+}
+.tl-item::after{content:'';position:absolute;bottom:0;left:0;right:0;height:4px;background:var(--zc,#e8c8a0)}
+.tl-item:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+.tl-hr{font-size:.65rem;color:#8a5020;font-weight:700}
+.tl-rain{font-size:.65rem;margin:.1rem 0;color:#0e60a0;font-weight:600}
+.tl-zone{font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+
+/* ══ REROUTING ══ */
+.route-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.85rem;margin-bottom:1.2rem}
+.rstat{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r2);padding:1rem 1.1rem;display:flex;align-items:center;gap:.85rem;box-shadow:var(--shadow2);transition:all .2s}
+.rstat:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.rstat-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0}
+.rstat-val{font-size:1.2rem;font-weight:900}
+.rstat-lbl{font-size:.68rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+#routeMap{height:400px;border-radius:var(--r2);border:1.5px solid var(--border)}
+.blk-table{width:100%;border-collapse:collapse;font-size:.8rem}
+.blk-table th{text-align:left;padding:.55rem .75rem;border-bottom:2px solid var(--border);color:var(--muted);font-weight:700;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;background:var(--surface2)}
+.blk-table td{padding:.52rem .75rem;border-bottom:1px solid var(--border)}
+.blk-table tr:hover td{background:var(--surface2)}
+.rpill{display:inline-flex;align-items:center;gap:.3rem;padding:.22rem .65rem;border-radius:999px;font-size:.7rem;font-weight:700;color:#fff}
+.rblocked{background:linear-gradient(135deg,#b83020,#a02010)}
+.rcaution{background:linear-gradient(135deg,#c07a10,#a06000)}
+.rclear{background:linear-gradient(135deg,#2d7a3a,#1a5228)}
+.rbtn{padding:.25rem .65rem;border-radius:6px;border:none;cursor:pointer;font-size:.72rem;font-weight:700;background:linear-gradient(135deg,#8b3a10,#c0541a);color:#fff;font-family:'Inter',sans-serif;transition:all .2s}
+.rbtn:hover{transform:translateY(-1px);box-shadow:0 4px 12px #c0541a38}
+.evac-card{background:linear-gradient(135deg,#f2faf4,#edf8f5);border:1.5px solid #90d0b8;border-radius:var(--r2);padding:1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;transition:all .2s}
+.evac-card:hover{box-shadow:0 4px 16px #1a7a6e18}
+
+/* ══ MESH ══ */
+.mesh-wrap{display:grid;grid-template-columns:2fr 1fr;gap:1rem}
+@media(max-width:900px){.mesh-wrap{grid-template-columns:1fr}}
+#meshCanvas{width:100%;height:320px;border-radius:var(--r2);border:1.5px solid var(--border);background:linear-gradient(135deg,#f7f4ef,#f2f8f4);display:block}
+.mesh-stats{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-bottom:.75rem}
+.mstat{border-radius:11px;padding:.85rem;text-align:center;border:1.5px solid transparent}
+.mstat-val{font-size:1.5rem;font-weight:900;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.mstat-lbl{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-top:.2rem}
+.node-list{display:flex;flex-direction:column;gap:.4rem;max-height:220px;overflow-y:auto}
+.node-item{display:flex;align-items:center;gap:.6rem;padding:.5rem .75rem;background:var(--surface2);border:1.5px solid var(--border);border-radius:9px;font-size:.78rem;transition:all .2s}
+.node-item:hover{background:var(--surface3);border-color:var(--border2)}
+.ndot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.non{background:#2d7a3a;box-shadow:0 0 0 2px #fff,0 0 0 4px #2d7a3a50}
+.nrelay{background:#c07a10;box-shadow:0 0 0 2px #fff,0 0 0 4px #c07a1050}
+.noff{background:#b83020;box-shadow:0 0 0 2px #fff,0 0 0 4px #b8302050}
+.nrole{margin-left:auto;font-size:.63rem;color:var(--muted);background:var(--surface3);border-radius:999px;padding:.1rem .5rem;border:1px solid var(--border);font-weight:600}
+.msg-feed{display:flex;flex-direction:column;gap:.4rem;margin-top:.75rem;max-height:160px;overflow-y:auto}
+.msg-item{display:flex;align-items:flex-start;gap:.55rem;background:var(--surface2);border:1.5px solid var(--border);border-radius:9px;padding:.5rem .75rem;font-size:.75rem;animation:fsld .3s ease}
+.msg-time{color:var(--muted);font-size:.67rem;white-space:nowrap;margin-top:.1rem}
+.msg-hop{font-size:.65rem;background:#fdeee6;color:#8b3a10;border-radius:999px;padding:.1rem .45rem;white-space:nowrap;margin-left:auto;margin-top:.1rem;font-weight:700;border:1px solid #f0c4a8}
+
+/* ══ FIELD REPORTS ══ */
+.rep-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:1rem}
+.rep-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:1rem;transition:all .25s;box-shadow:var(--shadow2)}
+.rep-card:hover{transform:translateY(-2px);box-shadow:var(--shadow);border-color:var(--border2)}
+.rc-hdr{display:flex;align-items:center;gap:.6rem;margin-bottom:.6rem}
+.rc-icon{font-size:1.5rem}
+.rc-dist{font-weight:800;font-size:.9rem}
+.rc-time{font-size:.68rem;color:var(--muted);margin-left:auto;font-weight:500}
+.rc-desc{font-size:.78rem;color:var(--muted);margin-bottom:.75rem;line-height:1.55}
+.rc-foot{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.sev-pill{padding:.22rem .65rem;border-radius:999px;font-size:.68rem;font-weight:800;color:#fff}
+.rep-reporter{font-size:.68rem;color:var(--muted);margin-left:auto;font-weight:500}
+.verified{font-size:.68rem;font-weight:800;color:#2d7a3a;display:flex;align-items:center;gap:.2rem}
+
+/* ══ SCROLLBAR ══ */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--surface2)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* ══ FOOTER ══ */
+footer{
+  background:linear-gradient(135deg,#8b3a10,#c0541a,#d4860a,#6b7c3a);
+  padding:.75rem 2rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem;
+  font-size:.72rem;color:#ffffffcc;
+}
+footer strong{color:#fff}
+
+@media(max-width:640px){
+  .main{padding:1rem}
+  header{padding:.75rem 1rem}
+  nav.tabs{padding:0 .5rem}
+  #map,#routeMap{height:280px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ══ HEADER ══ -->
+<header>
+  <div class="brand">
+    <div class="brand-icon">🏔️</div>
+    <div>
+      <div class="brand-title">BhuDrishti</div>
+      <div class="brand-sub">AI-BASED LANDSLIDE EARLY WARNING SYSTEM · NORTH-EAST INDIA · SIH 2026</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="live-badge"><span class="live-dot"></span>Live Monitoring</div>
+    <span class="hdr-time" id="hdr-clock"></span>
+    <button class="btn-hdr" onclick="refreshAll()">↻ Refresh</button>
+  </div>
+</header>
+
+<!-- ══ ALERT BANNER ══ -->
+<div class="alert-banner">
+  <div class="alert-header"><span class="pulse-ring"></span>&nbsp;ACTIVE ALERTS — 3 ZONES AT ELEVATED RISK</div>
+  <div class="alert-list">
+    <div class="alert-item" style="border-left:4px solid #6e3aaa;background:#f0e8fa88">
+      <span>🚨</span><span><strong>Cherrapunji</strong> — Critical · Rainfall: 312 mm · Slope: 54° · Road NH-6 BLOCKED</span>
+      <span class="sms-tag">✓ SMS Dispatched</span>
+    </div>
+    <div class="alert-item" style="border-left:4px solid #b83020;background:#fdecea88">
+      <span>⚠️</span><span><strong>Tawang</strong> — High · Rainfall: 178 mm · Slope: 48° · Rerouting active via Alt Route A</span>
+      <span class="sms-tag">✓ SMS Dispatched</span>
+    </div>
+    <div class="alert-item" style="border-left:4px solid #b83020;background:#fdecea88">
+      <span>⚠️</span><span><strong>Kohima</strong> — High · Rainfall: 145 mm · Slope: 41° · Bluetooth mesh relay active</span>
+      <span class="sms-tag">✓ SMS Dispatched</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TABS ══ -->
+<nav class="tabs">
+  <button class="tab active" onclick="showTab('overview',this)">⬡ Overview</button>
+  <button class="tab" onclick="showTab('ai',this)">🤖 AI Risk Assessment</button>
+  <button class="tab" onclick="showTab('forecast',this)">⏱ 24h Forecast</button>
+  <button class="tab" onclick="showTab('reroute',this)">🛣 Rerouting System</button>
+  <button class="tab" onclick="showTab('mesh',this)">📡 Bluetooth Mesh</button>
+  <button class="tab" onclick="showTab('reports',this)">📋 Field Reports</button>
+</nav>
+
+<!-- ══ MAIN ══ -->
+<div class="main">
+
+<!-- ── OVERVIEW ── -->
+<div id="tab-overview" class="section visible">
+  <div class="stat-grid">
+    <div class="stat-card" style="--c1:#8b3a10;--c2:#c0541a">
+      <div class="stat-icon-wrap">📍</div>
+      <div class="stat-num">12</div>
+      <div class="stat-label">Monitored Zones</div>
+      <div class="stat-delta delta-up">↑ NER Coverage Active</div>
+    </div>
+    <div class="stat-card" style="--c1:#c07a10;--c2:#d4860a">
+      <div class="stat-icon-wrap">🔔</div>
+      <div class="stat-num">3</div>
+      <div class="stat-label">Active Alerts</div>
+      <div class="stat-delta delta-dn">↑ +1 from yesterday</div>
+    </div>
+    <div class="stat-card" style="--c1:#b83020;--c2:#c0541a">
+      <div class="stat-icon-wrap">⚠️</div>
+      <div class="stat-num">2</div>
+      <div class="stat-label">High Risk Zones</div>
+      <div class="stat-delta delta-dn">Tawang · Kohima</div>
+    </div>
+    <div class="stat-card" style="--c1:#6e3aaa;--c2:#8b50cc">
+      <div class="stat-icon-wrap">🚨</div>
+      <div class="stat-num">1</div>
+      <div class="stat-label">Critical Zones</div>
+      <div class="stat-delta delta-dn">Cherrapunji</div>
+    </div>
+    <div class="stat-card" style="--c1:#1a7a6e;--c2:#1a6fa0">
+      <div class="stat-icon-wrap">📡</div>
+      <div class="stat-num">8</div>
+      <div class="stat-label">Mesh Nodes Online</div>
+      <div class="stat-delta delta-up">↑ 3 relay nodes active</div>
+    </div>
+    <div class="stat-card" style="--c1:#4a5a22;--c2:#6b7c3a">
+      <div class="stat-icon-wrap">🛣</div>
+      <div class="stat-num">2</div>
+      <div class="stat-label">Roads Blocked</div>
+      <div class="stat-delta delta-dn">Reroutes calculated</div>
+    </div>
+  </div>
+
+  <div class="charts-row">
+    <div class="card">
+      <div class="card-title"><div class="ct-icon" style="background:#fdeee6">📊</div>Rainfall by District (mm)</div>
+      <canvas id="rainfallChart" height="85"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title"><div class="ct-icon" style="background:#f0e8fa">⬡</div>Risk Distribution</div>
+      <canvas id="riskDonut" height="165"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      <div class="ct-icon" style="background:#e0f4f0">🗺</div>NER Live Risk Map
+      &nbsp;<span class="badge badge-teal">AI Predicted</span>
+      &nbsp;<span class="badge badge-terra">Real-Time</span>
+    </div>
+    <div id="map"></div>
+    <div class="map-legend">
+      <div class="leg-item"><span class="leg-dot" style="background:var(--low)"></span>Low Risk</div>
+      <div class="leg-item"><span class="leg-dot" style="background:var(--moderate)"></span>Moderate</div>
+      <div class="leg-item"><span class="leg-dot" style="background:var(--high)"></span>High Risk</div>
+      <div class="leg-item"><span class="leg-dot" style="background:var(--critical)"></span>Critical</div>
+      <div class="leg-item"><span style="display:inline-block;width:22px;height:4px;background:#b83020;border-radius:2px;margin-right:.3rem;vertical-align:middle"></span>Blocked Road</div>
+      <div class="leg-item"><span style="display:inline-block;width:22px;height:0;border-top:3px dashed #2d7a3a;margin-right:.3rem;vertical-align:middle"></span>Alt Route</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── AI RISK ASSESSMENT ── -->
+<div id="tab-ai" class="section">
+  <div class="card">
+    <div class="card-title">
+      <div class="ct-icon" style="background:#fdeee6">🤖</div>AI Risk Assessment
+      &nbsp;<span class="badge badge-terra">Random Forest Classifier</span>
+    </div>
+    <p style="font-size:.8rem;color:var(--muted);margin-bottom:1.25rem;line-height:1.65;max-width:780px">
+      Enter terrain and weather parameters. The trained <strong style="color:var(--terracotta)">Random Forest model</strong> analyses
+      14 features — terrain morphology, rainfall intensity, soil properties, fault proximity — and predicts
+      landslide risk with a probability breakdown across 4 classes.
+    </p>
+    <div class="form-grid">
+      <div class="form-field"><label>Slope (°)</label><input type="number" id="f-slope" value="42" min="0" max="90" step="0.1"/></div>
+      <div class="form-field"><label>Elevation (m)</label><input type="number" id="f-elev" value="1200"/></div>
+      <div class="form-field"><label>Curvature</label><input type="number" id="f-curv" value="2.1" step="0.1"/></div>
+      <div class="form-field"><label>Aspect (°)</label><input type="number" id="f-aspect" value="180"/></div>
+      <div class="form-field"><label>Precipitation (mm)</label><input type="number" id="f-rain" value="150"/></div>
+      <div class="form-field"><label>NDVI</label><input type="number" id="f-ndvi" value="0.15" step="0.01"/></div>
+      <div class="form-field"><label>Soil Moisture (0–1)</label><input type="number" id="f-moist" value="0.70" step="0.01"/></div>
+      <div class="form-field"><label>Dist. to Road (m)</label><input type="number" id="f-road" value="300"/></div>
+      <div class="form-field"><label>Dist. to Fault (m)</label><input type="number" id="f-fault" value="4000"/></div>
+      <div class="form-field"><label>Soil Type</label>
+        <select id="f-soil"><option value="0">Sandy</option><option value="1">Loamy</option><option value="2" selected>Clay</option><option value="3">Rocky</option></select>
+      </div>
+      <div class="form-field"><label>Land Use / Cover</label>
+        <select id="f-lulc"><option value="0">Forest</option><option value="1" selected>Agriculture</option><option value="2">Barren</option><option value="3">Urban</option></select>
+      </div>
+      <div class="form-field"><label>District</label>
+        <select id="f-district"><option>Cherrapunji</option><option>Tawang</option><option>Kohima</option><option>Shillong</option><option>Itanagar</option><option>Imphal</option><option>Aizawl</option><option>Gangtok</option></select>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="runPrediction()" id="pred-btn" style="font-size:.9rem;padding:.6rem 1.5rem">🤖 Run AI Prediction</button>
+    <div id="predict-result"></div>
+  </div>
+</div>
+
+<!-- ── FORECAST ── -->
+<div id="tab-forecast" class="section">
+  <div class="card">
+    <div class="card-title">
+      <div class="ct-icon" style="background:#e0f4f0">⏱</div>24-Hour Lead-Time Forecast
+      &nbsp;<span class="badge badge-teal">Open-Meteo Live Rainfall</span>
+    </div>
+    <p style="font-size:.8rem;color:var(--muted);margin-bottom:1.25rem;line-height:1.65;max-width:780px">
+      Fetches live hourly rainfall from <strong style="color:var(--teal)">Open-Meteo API</strong>, runs through the AI model for each hour,
+      and identifies the earliest time the location breaches the selected risk threshold.
+    </p>
+    <div class="fc-controls">
+      <div class="form-field"><label>Location</label>
+        <select id="fc-preset" onchange="selPreset()"><option value="0">Cherrapunji</option><option value="1">Tawang</option><option value="2">Kohima</option><option value="3">Aizawl</option><option value="4">Gangtok</option></select>
+      </div>
+      <div class="form-field"><label>Latitude</label><input type="number" id="fc-lat" value="25.25" step="0.01" style="width:105px"/></div>
+      <div class="form-field"><label>Longitude</label><input type="number" id="fc-lon" value="91.73" step="0.01" style="width:105px"/></div>
+      <div class="form-field"><label>Alert Threshold</label>
+        <select id="fc-thresh"><option value="moderate">Moderate</option><option value="high" selected>High</option><option value="critical">Critical</option></select>
+      </div>
+      <button class="btn btn-teal" onclick="runForecast()">▶ Run Forecast</button>
+    </div>
+    <div id="forecast-result"></div>
+  </div>
+</div>
+
+<!-- ── REROUTING ── -->
+<div id="tab-reroute" class="section">
+  <div class="sec-hdr">
+    <h2>🛣 Dynamic Rerouting System</h2>
+    <div style="display:flex;gap:.5rem"><span class="badge badge-terra">AI Powered</span><span class="badge badge-amber">Real-Time</span></div>
+  </div>
+  <div class="route-stats">
+    <div class="rstat">
+      <div class="rstat-icon" style="background:linear-gradient(135deg,#fdecea,#f8d0c8)">🚧</div>
+      <div><div class="rstat-val" style="color:#b83020">2</div><div class="rstat-lbl">Blocked Roads</div></div>
+    </div>
+    <div class="rstat">
+      <div class="rstat-icon" style="background:linear-gradient(135deg,#e8f5ea,#c8e8cc)">✅</div>
+      <div><div class="rstat-val" style="color:#2d7a3a">2</div><div class="rstat-lbl">Alt Routes Active</div></div>
+    </div>
+    <div class="rstat">
+      <div class="rstat-icon" style="background:linear-gradient(135deg,#fdeee6,#f8d8c0)">👥</div>
+      <div><div class="rstat-val" style="color:var(--terracotta)">340</div><div class="rstat-lbl">People Rerouted</div></div>
+    </div>
+    <div class="rstat">
+      <div class="rstat-icon" style="background:linear-gradient(135deg,#e0f4f0,#c0e8e0)">⏱</div>
+      <div><div class="rstat-val" style="color:var(--teal)">+18 min</div><div class="rstat-lbl">Avg Detour</div></div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:3fr 2fr;gap:1rem">
+    <div class="card">
+      <div class="card-title"><div class="ct-icon" style="background:#e0f4f0">🗺</div>Route Map — NER Road Network</div>
+      <div id="routeMap"></div>
+      <div style="display:flex;gap:1rem;margin-top:.75rem;flex-wrap:wrap">
+        <div class="leg-item"><span style="display:inline-block;width:22px;height:4px;background:#b83020;border-radius:2px;margin-right:.3rem;vertical-align:middle"></span>Blocked</div>
+        <div class="leg-item"><span style="display:inline-block;width:22px;height:0;border-top:3px dashed #2d7a3a;margin-right:.3rem;vertical-align:middle"></span>Alt Route</div>
+        <div class="leg-item"><span style="display:inline-block;width:22px;height:4px;background:#c07a10;border-radius:2px;margin-right:.3rem;vertical-align:middle"></span>Caution</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><div class="ct-icon" style="background:#fdecea">🚧</div>Road Blockage Status</div>
+      <table class="blk-table"><thead><tr><th>Road</th><th>Status</th><th>Cause</th><th>Action</th></tr></thead>
+      <tbody id="blk-body"></tbody></table>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title"><div class="ct-icon" style="background:#e8f5ea">🔄</div>Evacuation Route Recommendations</div>
+    <div id="evac-routes" style="display:flex;flex-direction:column;gap:.75rem"></div>
+  </div>
+</div>
+
+<!-- ── BLUETOOTH MESH ── -->
+<div id="tab-mesh" class="section">
+  <div class="sec-hdr">
+    <h2>📡 Bluetooth Mesh — No-Connectivity Zone Coverage</h2>
+    <span class="badge badge-teal">BLE 5.0 · Device-to-Device Relay</span>
+  </div>
+  <div class="mesh-wrap">
+    <div class="card">
+      <div class="card-title"><div class="ct-icon" style="background:#e0f4f0">📡</div>Live Mesh Topology</div>
+      <canvas id="meshCanvas"></canvas>
+      <div style="display:flex;gap:1rem;margin-top:.75rem;flex-wrap:wrap">
+        <div class="leg-item"><span class="ndot non" style="display:inline-block"></span>&nbsp;Online</div>
+        <div class="leg-item"><span class="ndot nrelay" style="display:inline-block"></span>&nbsp;Relay</div>
+        <div class="leg-item"><span class="ndot noff" style="display:inline-block"></span>&nbsp;Offline</div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:1rem">
+      <div class="card">
+        <div class="card-title"><div class="ct-icon" style="background:#fdeee6">📊</div>Network Stats</div>
+        <div class="mesh-stats">
+          <div class="mstat" style="background:linear-gradient(135deg,#fdeee6,#f8ddd0);border-color:#f0c4a8"><div class="mstat-val" style="background:linear-gradient(135deg,#8b3a10,#c0541a)">8</div><div class="mstat-lbl">Nodes Online</div></div>
+          <div class="mstat" style="background:linear-gradient(135deg,#e8f5ea,#d0ecd4);border-color:#a8d8b0"><div class="mstat-val" style="background:linear-gradient(135deg,#2d7a3a,#1a7a6e)">3</div><div class="mstat-lbl">Relay Hops</div></div>
+          <div class="mstat" style="background:linear-gradient(135deg,#fef6e0,#f8ecc0);border-color:#e8d888"><div class="mstat-val" style="background:linear-gradient(135deg,#c07a10,#d4860a)">94%</div><div class="mstat-lbl">Coverage</div></div>
+          <div class="mstat" style="background:linear-gradient(135deg,#e0f4f0,#c8ece4);border-color:#90d0c0"><div class="mstat-val" style="background:linear-gradient(135deg,#1a7a6e,#1a6fa0)">12ms</div><div class="mstat-lbl">Avg Latency</div></div>
+        </div>
+        <div class="node-list" id="node-list"></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><div class="ct-icon" style="background:#eef2e0">💬</div>Mesh Message Feed</div>
+        <div class="msg-feed" id="msg-feed"></div>
+      </div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+    <div class="card">
+      <div class="card-title"><div class="ct-icon" style="background:#fdeee6">ℹ</div>How Bluetooth Mesh Works</div>
+      <div style="display:flex;flex-direction:column;gap:.9rem;font-size:.8rem;color:var(--muted);line-height:1.6">
+        <div style="display:flex;gap:.75rem;align-items:flex-start">
+          <div style="width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#8b3a10,#c0541a);display:flex;align-items:center;justify-content:center;font-size:.82rem;flex-shrink:0;color:#fff;font-weight:800">1</div>
+          <span><strong style="color:var(--text)">No Internet Required</strong> — Devices communicate over BLE 5.0 in areas with no cellular or WiFi coverage.</span>
+        </div>
+        <div style="display:flex;gap:.75rem;align-items:flex-start">
+          <div style="width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#1a7a6e,#1a6fa0);display:flex;align-items:center;justify-content:center;font-size:.82rem;flex-shrink:0;color:#fff;font-weight:800">2</div>
+          <span><strong style="color:var(--text)">Flood Fill Relay</strong> — Alert messages hop device-to-device covering villages up to 5 km from the nearest node.</span>
+        </div>
+        <div style="display:flex;gap:.75rem;align-items:flex-start">
+          <div style="width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#2d7a3a,#1a7a6e);display:flex;align-items:center;justify-content:center;font-size:.82rem;flex-shrink:0;color:#fff;font-weight:800">3</div>
+          <span><strong style="color:var(--text)">Priority Alerts</strong> — Critical/High alerts get transmission priority with GPS coordinates of the hazard.</span>
+        </div>
+        <div style="display:flex;gap:.75rem;align-items:flex-start">
+          <div style="width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#4a5a22,#6b7c3a);display:flex;align-items:center;justify-content:center;font-size:.82rem;flex-shrink:0;color:#fff;font-weight:800">4</div>
+          <span><strong style="color:var(--text)">Auto Sync</strong> — Once connectivity is restored, all offline data syncs to <strong>PostgreSQL</strong> automatically.</span>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><div class="ct-icon" style="background:#e8f5ea">📨</div>Send Test Alert via Mesh</div>
+      <div class="form-field" style="margin-bottom:.75rem"><label>Target Zone</label>
+        <select id="mesh-target"><option>Cherrapunji — Zone B (No Connectivity)</option><option>Tawang — Remote Village Cluster</option><option>Kohima — Hill Station Area</option></select>
+      </div>
+      <div class="form-field" style="margin-bottom:.75rem"><label>Alert Type</label>
+        <select id="mesh-type"><option value="critical">🚨 Critical — Evacuate Now</option><option value="high">⚠️ High — Prepare to Evacuate</option><option value="moderate">📢 Moderate — Stay Alert</option></select>
+      </div>
+      <div class="form-field" style="margin-bottom:1rem"><label>Message</label>
+        <input type="text" id="mesh-msg" value="Landslide risk HIGH. Evacuate via Route B immediately."/>
+      </div>
+      <button class="btn btn-teal" onclick="sendMesh()" style="width:100%;padding:.6rem">📡 Broadcast via Mesh Network</button>
+      <div id="mesh-result" style="margin-top:.75rem"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── FIELD REPORTS ── -->
+<div id="tab-reports" class="section">
+  <div class="sec-hdr">
+    <h2>📋 Field Reports — Citizen & Officer Submissions</h2>
+    <button class="btn btn-primary btn-sm" onclick="alert('Connects to Node.js backend → PostgreSQL in full deployment.')">+ Submit Report</button>
+  </div>
+  <div class="rep-grid" id="rep-grid"></div>
+</div>
+
+</div><!-- /main -->
+
+<!-- ══ FOOTER ══ -->
+<footer>
+  <span><strong>BhuDrishti</strong> — Team InnoVision · Smart India Hackathon 2026 · IGDTUW</span>
+  <span>Stack: Python · scikit-learn · Flask · Node.js · Express · <strong>PostgreSQL</strong> · React · Leaflet · Chart.js</span>
+</footer>
+</div>
+
+<script>
+/* ══ DATA ══ */
+const ML_API='https://bhudrishti-ml.onrender.com'
+
+const RC={Low:"#2d7a3a",Moderate:"#c07a10",High:"#b83020",Critical:"#6e3aaa"}
+const RR={Low:9,Moderate:13,High:17,Critical:22}
+
+// District terrain profiles matching DISTRICT_PROFILES in ml/api/app.py
+// precipitation & soil_moisture intentionally omitted — fetched live from Open-Meteo by Flask
+const PRESET_PROFILES=[
+  {label:"Cherrapunji",lat:25.25,lon:91.73,slope:54,elevation:1313,curvature:3.1,aspect:225,ndvi:0.20,soil_type:2,lulc:1,dist_road:400,dist_fault:3000},
+  {label:"Tawang",     lat:27.59,lon:91.86,slope:48,elevation:3048,curvature:2.2,aspect:210,ndvi:0.45,soil_type:2,lulc:0,dist_road:800,dist_fault:6000},
+  {label:"Kohima",     lat:25.67,lon:94.11,slope:41,elevation:1444,curvature:2.0,aspect:200,ndvi:0.40,soil_type:2,lulc:0,dist_road:350,dist_fault:5000},
+  {label:"Aizawl",     lat:23.73,lon:92.72,slope:36,elevation:1132,curvature:1.8,aspect:195,ndvi:0.42,soil_type:2,lulc:0,dist_road:300,dist_fault:6500},
+  {label:"Gangtok",    lat:27.34,lon:88.61,slope:45,elevation:1650,curvature:2.5,aspect:215,ndvi:0.38,soil_type:2,lulc:0,dist_road:500,dist_fault:4000},
+]
+
+// Fallback static data used only while live API loads or if unreachable
+let REGIONS=[
+  {name:"Cherrapunji",lat:25.25,lon:91.73,risk:"Critical",rain:312,slope:54},
+  {name:"Tawang",     lat:27.59,lon:91.86,risk:"High",    rain:178,slope:48},
+  {name:"Kohima",     lat:25.67,lon:94.11,risk:"High",    rain:145,slope:41},
+  {name:"Itanagar",   lat:27.08,lon:93.61,risk:"Moderate",rain:98, slope:32},
+  {name:"Shillong",   lat:25.58,lon:91.89,risk:"Moderate",rain:87, slope:28},
+  {name:"Imphal",     lat:24.82,lon:93.94,risk:"Moderate",rain:74, slope:25},
+  {name:"Dibrugarh",  lat:27.47,lon:94.91,risk:"Low",     rain:45, slope:12},
+  {name:"Aizawl",     lat:23.73,lon:92.72,risk:"Moderate",rain:92, slope:36},
+  {name:"Agartala",   lat:23.83,lon:91.29,risk:"Low",     rain:38, slope:9},
+  {name:"Gangtok",    lat:27.34,lon:88.61,risk:"High",    rain:134,slope:45},
+  {name:"Silchar",    lat:24.83,lon:92.78,risk:"Low",     rain:42, slope:14},
+  {name:"Jorhat",     lat:26.75,lon:94.20,risk:"Moderate",rain:68, slope:18},
+]
+
+async function loadLiveRegions(){
+  try{
+    const res=await fetch(ML_API+'/region-risks',{signal:AbortSignal.timeout(12000)})
+    if(!res.ok)throw new Error('API '+res.status)
+    const json=await res.json()
+    REGIONS=json.regions.map(r=>({name:r.name,lat:r.lat,lon:r.lon,risk:r.risk_category,rain:r.rainfall_mm,slope:r.slope_avg}))
+    refreshMap();refreshCharts();refreshStatCards()
+  }catch(e){console.warn('[BhuDrishti] region-risks fallback. Reason:',e.message)}
+}
+function refreshMap(){
+  if(!window._mapMarkers)return
+  window._mapMarkers.forEach(m=>m.remove());window._mapMarkers=[]
+  REGIONS.forEach(r=>{
+    const c=RC[r.risk]||'#aaa'
+    const m=L.circleMarker([r.lat,r.lon],{radius:RR[r.risk]||10,fillColor:c,fillOpacity:.88,color:'#fff',weight:2})
+      .bindPopup(`<div style="font-size:.85rem;min-width:155px"><b style="font-size:.95rem">${r.name}</b><div style="display:inline-block;background:${c};color:#fff;padding:.15rem .6rem;border-radius:999px;font-size:.72rem;font-weight:700;margin:.3rem 0">${r.risk}</div><table style="width:100%;border-collapse:collapse"><tr><td>Rainfall</td><td style="font-weight:700;text-align:right">${r.rain} mm</td></tr><tr><td>Slope</td><td style="font-weight:700;text-align:right">${r.slope}°</td></tr></table></div>`)
+      .addTo(map)
+    window._mapMarkers.push(m)
+  })
+}
+function refreshCharts(){
+  if(window._rainfallChart){
+    window._rainfallChart.data.labels=REGIONS.map(r=>r.name)
+    window._rainfallChart.data.datasets[0].data=REGIONS.map(r=>r.rain)
+    window._rainfallChart.data.datasets[0].backgroundColor=REGIONS.map(r=>RC[r.risk]+'99')
+    window._rainfallChart.data.datasets[0].borderColor=REGIONS.map(r=>RC[r.risk])
+    window._rainfallChart.update()
+  }
+  if(window._riskDonut){
+    const cnt={Low:0,Moderate:0,High:0,Critical:0}
+    REGIONS.forEach(r=>cnt[r.risk]=(cnt[r.risk]||0)+1)
+    window._riskDonut.data.datasets[0].data=Object.values(cnt)
+    window._riskDonut.update()
+  }
+}
+function refreshStatCards(){
+  try{
+    const high=REGIONS.filter(r=>r.risk==='High').length
+    const crit=REGIONS.filter(r=>r.risk==='Critical').length
+    const aEl=document.querySelector('[data-stat="alerts"]')
+    const hEl=document.querySelector('[data-stat="high"]')
+    const cEl=document.querySelector('[data-stat="critical"]')
+    if(aEl)aEl.textContent=high+crit
+    if(hEl)hEl.textContent=high
+    if(cEl)cEl.textContent=crit
+  }catch(e){}
+}
+const BLOCKAGES=[
+  {road:"NH-6 Cherrapunji Bypass",st:"blocked",cause:"Landslide debris",alt:"Alt Route A (NH-44)",delay:"+22 min"},
+  {road:"Tawang–Bomdila Road",    st:"blocked",cause:"Slope failure",   alt:"Alt Route B (State Hwy)",delay:"+15 min"},
+  {road:"NH-27 Kaziranga",        st:"caution",cause:"Flooding risk",   alt:"Proceed with caution",delay:"+5 min"},
+  {road:"NH-40 Shillong–Jowai",   st:"clear",  cause:"—",              alt:"—",delay:"—"},
+]
+const EVAC=[
+  {from:"Cherrapunji Zone A",to:"Shillong Safe Zone",via:"Alt Route A · NH-44",dist:"48 km",time:"1h 20m"},
+  {from:"Tawang Village Cluster",to:"Bomdila Relief Camp",via:"Alt Route B · State Hwy 8",dist:"62 km",time:"2h 05m"},
+]
+const NODES=[
+  {id:"NODE-01",name:"Cherrapunji HQ",   st:"online", role:"Gateway", bat:92},
+  {id:"NODE-02",name:"Zone B Relay",     st:"relay",  role:"Relay",   bat:78},
+  {id:"NODE-03",name:"Remote Village A", st:"online", role:"Endpoint",bat:65},
+  {id:"NODE-04",name:"Hilltop Station",  st:"relay",  role:"Relay",   bat:83},
+  {id:"NODE-05",name:"Tawang Outpost",   st:"online", role:"Gateway", bat:88},
+  {id:"NODE-06",name:"Offline Zone",     st:"offline",role:"Endpoint",bat:12},
+  {id:"NODE-07",name:"Kohima Ridge",     st:"online", role:"Relay",   bat:71},
+  {id:"NODE-08",name:"Valley Sensor",    st:"online", role:"Endpoint",bat:56},
+  {id:"NODE-09",name:"Gangtok Station",  st:"relay",  role:"Relay",   bat:90},
+]
+const MSGS=[
+  {t:"CRITICAL alert relayed to Zone B — 3 hops",   time:"09:31",hops:3,from:"NODE-01"},
+  {t:"Evacuation route B confirmed safe",            time:"09:28",hops:2,from:"NODE-05"},
+  {t:"Rainfall threshold exceeded — Hilltop",        time:"09:22",hops:1,from:"NODE-04"},
+  {t:"NODE-06 battery low — relay mode",             time:"09:18",hops:0,from:"NODE-06"},
+  {t:"Sync complete — 47 offline records to PG DB",  time:"09:10",hops:0,from:"NODE-01"},
+]
+const REPORTS=[
+  {d:"Cherrapunji",type:"landslide_occurred",sev:"high",  rep:"Field Officer Rajan",time:"09:12 AM",v:true, desc:"Large debris flow blocking NH-6 near km marker 24. ~200m stretch affected."},
+  {d:"Tawang",     type:"blocked_road",      sev:"high",  rep:"Citizen App",        time:"08:45 AM",v:false,desc:"Road completely impassable near old bridge. Vehicles stranded."},
+  {d:"Kohima",     type:"crack",             sev:"high",  rep:"District Admin",     time:"07:30 AM",v:true, desc:"3m wide tension crack on eastern slope. Signs of impending failure."},
+  {d:"Shillong",   type:"flooding",          sev:"medium",rep:"Citizen App",        time:"06:55 AM",v:false,desc:"Low-lying area inundated. Drain overflow causing road submersion."},
+  {d:"Aizawl",     type:"infrastructure_damage",sev:"medium",rep:"Field Officer Devi",time:"06:10 AM",v:true,desc:"Retaining wall collapsed on State Highway 4."},
+  {d:"Itanagar",   type:"crack",             sev:"low",   rep:"Citizen App",        time:"Yesterday",v:false,desc:"Hairline cracks near residential area. Monitoring advised."},
+]
+
+/* ══ CLOCK ══ */
+function tick(){document.getElementById('hdr-clock').textContent=new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'Asia/Kolkata'})+' IST'}
+setInterval(tick,1000);tick()
+
+/* ══ TABS ══ */
+function showTab(id,btn){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('visible'))
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'))
+  document.getElementById('tab-'+id).classList.add('visible')
+  btn.classList.add('active')
+  if(id==='mesh')    initMesh()
+  if(id==='reroute') initRouteMap()
+  if(id==='reports') initReports()
+  if(id==='forecast'&&!window._fd){window._fd=true;runForecast()}
+}
+
+/* ══ MAP ══ */
+const map=L.map('map',{center:[25.5,92.5],zoom:6,zoomControl:false})
+L.control.zoom({position:'bottomright'}).addTo(map)
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap © CartoDB'}).addTo(map)
+window._mapMarkers=[]
+REGIONS.forEach(r=>{
+  const c=RC[r.risk]
+  const m=L.circleMarker([r.lat,r.lon],{radius:RR[r.risk],fillColor:c,fillOpacity:.88,color:'#fff',weight:2})
+  .bindPopup(`<div style="font-size:.85rem;min-width:155px"><b style="font-size:.95rem">${r.name}</b><div style="display:inline-block;background:${c};color:#fff;padding:.15rem .6rem;border-radius:999px;font-size:.72rem;font-weight:700;margin:.3rem 0">${r.risk}</div><table style="width:100%;border-collapse:collapse"><tr><td>Rainfall</td><td style="font-weight:700;text-align:right">${r.rain} mm</td></tr><tr><td>Slope</td><td style="font-weight:700;text-align:right">${r.slope}°</td></tr></table></div>`)
+  .addTo(map)
+  window._mapMarkers.push(m)
+})
+L.polyline([[25.30,91.70],[25.20,91.80]],{color:'#b83020',weight:5,dashArray:'8,4'}).bindTooltip('⛔ NH-6 BLOCKED').addTo(map)
+L.polyline([[25.30,91.70],[25.40,91.60],[25.20,91.80]],{color:'#2d7a3a',weight:3,dashArray:'6,4'}).bindTooltip('✅ Alt Route A').addTo(map)
+
+/* ══ CHARTS ══ */
+window._rainfallChart=new Chart(document.getElementById('rainfallChart'),{
+  type:'bar',
+  data:{
+    labels:REGIONS.map(r=>r.name),
+    datasets:[{
+      label:'Rainfall (mm)',data:REGIONS.map(r=>r.rain),
+      backgroundColor:REGIONS.map(r=>RC[r.risk]+'99'),
+      borderColor:REGIONS.map(r=>RC[r.risk]),
+      borderWidth:2,borderRadius:7,borderSkipped:false,
+    }]
+  },
+  options:{
+    responsive:true,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.raw} mm`}}},
+    scales:{
+      x:{ticks:{color:'#7a6a55',maxRotation:35,font:{size:10}},grid:{color:'#ede9e0'}},
+      y:{ticks:{color:'#7a6a55',font:{size:10}},grid:{color:'#ede9e0'}},
+    }
+  }
+})
+const cnt={Low:0,Moderate:0,High:0,Critical:0}
+REGIONS.forEach(r=>cnt[r.risk]++)
+window._riskDonut=new Chart(document.getElementById('riskDonut'),{
+  type:'doughnut',
+  data:{
+    labels:Object.keys(cnt),
+    datasets:[{data:Object.values(cnt),backgroundColor:Object.keys(cnt).map(k=>RC[k]+'bb'),borderColor:Object.keys(cnt).map(k=>RC[k]),borderWidth:3}]
+  },
+  options:{
+    responsive:true,cutout:'62%',
+    plugins:{legend:{position:'bottom',labels:{color:'#7a6a55',font:{size:10},padding:14}}}
+  }
+})
+// Fetch live data — updates map, charts, stat cards when API responds
+loadLiveRegions()
+
+/* ══ AI PREDICTION — real Flask ML API ══ */
+const RCONF={
+  Low:    {c1:'#2d7a3a',c2:'#1a7a6e',bg:'#f2faf4',border:'#90d0b0',emo:'✅'},
+  Moderate:{c1:'#c07a10',c2:'#d4860a',bg:'#fef8e8',border:'#e8d080',emo:'📢'},
+  High:   {c1:'#b83020',c2:'#c0541a',bg:'#fdf0ec',border:'#e8a090',emo:'⚠️'},
+  Critical:{c1:'#6e3aaa',c2:'#8b3a10',bg:'#f6f0fa',border:'#c8a0e0',emo:'🚨'},
+}
+async function runPrediction(){
+  const btn=document.getElementById('pred-btn')
+  btn.textContent='⚙️ Analysing…';btn.disabled=true
+  const payload={
+    slope:     +document.getElementById('f-slope').value,
+    elevation: +(document.getElementById('f-elev')||{value:1000}).value||1000,
+    curvature: +(document.getElementById('f-curv')||{value:2}).value||2,
+    aspect:    +(document.getElementById('f-aspect')||{value:180}).value||180,
+    precipitation:+document.getElementById('f-rain').value,
+    ndvi:      +document.getElementById('f-ndvi').value,
+    soil_moisture:+document.getElementById('f-moist').value,
+    soil_type: +document.getElementById('f-soil').value,
+    lulc:      +(document.getElementById('f-lulc')||{value:0}).value||0,
+    dist_road: +(document.getElementById('f-droad')||{value:500}).value||500,
+    dist_fault:+(document.getElementById('f-dfault')||{value:8000}).value||8000,
+  }
+  try{
+    const res=await fetch(ML_API+'/predict',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload),signal:AbortSignal.timeout(12000)
+    })
+    if(!res.ok)throw new Error('API '+res.status)
+    const d=await res.json()
+    const cat=d.risk_category
+    const r=RCONF[cat]||RCONF.Moderate
+    const conf=d.confidence
+    const probs=d.probabilities||{}
+    document.getElementById('predict-result').innerHTML=`
+      <div class="result-box" style="background:${r.bg};border-color:${r.border}">
+        <div class="result-hdr" style="--rc1:${r.c1};--rc2:${r.c2}">
+          <div class="result-emoji-box" style="background:${r.c1}14;--rc1:${r.c1}">${r.emo}</div>
+          <div>
+            <div class="result-cat" style="--rc1:${r.c1};--rc2:${r.c2}">${cat} Risk</div>
+            <div class="result-sub">Gradient Boosting Model · 14 features · Live ML API</div>
+          </div>
+          <div class="conf-badge">Confidence: ${(conf*100).toFixed(1)}%</div>
+        </div>
+        <div class="conf-track"><div class="conf-fill" style="width:${conf*100}%;--rc1:${r.c1};--rc2:${r.c2}"></div></div>
+        <div class="prob-grid">
+          ${Object.entries(probs).map(([k,v])=>`
+            <div class="prob-card ${k===cat?'hi':''}">
+              <div class="prob-pct" style="color:${RC[k]||'#888'}">${(v*100).toFixed(1)}%</div>
+              <div class="prob-nm">${k}</div>
+            </div>`).join('')}
+        </div>
+      </div>`
+  }catch(e){
+    document.getElementById('predict-result').innerHTML=`<div class="result-box" style="background:#fdf0ec;border-color:#e8a090"><strong>⚠️ ML API unreachable.</strong><br><span style="font-size:.8rem;color:#888">${e.message}</span></div>`
+  }
+  btn.textContent='🤖 Run AI Prediction';btn.disabled=false
+}
+
+/* ══ FORECAST — real Open-Meteo via Flask API ══ */
+function selPreset(){
+  const i=+document.getElementById('fc-preset').value
+  const p=PRESET_PROFILES[i]
+  document.getElementById('fc-lat').value=p.lat
+  document.getElementById('fc-lon').value=p.lon
+}
+async function runForecast(){
+  const btn=document.querySelector('[onclick="runForecast()"]')||document.getElementById('fc-btn')
+  if(btn){btn.textContent='⏳ Fetching…';btn.disabled=true}
+  const thresh=document.getElementById('fc-thresh').value
+  const lat=+document.getElementById('fc-lat').value
+  const lon=+document.getElementById('fc-lon').value
+  const presetIdx=+document.getElementById('fc-preset').value
+  const p=PRESET_PROFILES[presetIdx]||PRESET_PROFILES[0]
+  const staticFeatures={slope:p.slope,elevation:p.elevation,curvature:p.curvature,aspect:p.aspect,ndvi:p.ndvi,soil_type:p.soil_type,lulc:p.lulc,dist_road:p.dist_road,dist_fault:p.dist_fault}
+  const zc={low:RC.Low,moderate:RC.Moderate,high:RC.High,critical:RC.Critical}
+  try{
+    const res=await fetch(ML_API+'/forecast',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({latitude:lat,longitude:lon,static_features:staticFeatures,alert_threshold:thresh}),
+      signal:AbortSignal.timeout(20000)
+    })
+    if(!res.ok)throw new Error('API '+res.status)
+    const d=await res.json()
+    const sum=d.alert_expected
+      ?`<div class="fc-summary fc-alert"><div class="fc-icon">🚨</div><div><strong>Alert expected in ${d.hours_until_alert} hour${d.hours_until_alert!==1?'s':''}</strong><br><span style="font-size:.8rem">Breach at <strong>${d.alert_time}</strong> — Risk: <strong style="color:${zc[d.predicted_zone_at_alert]||'#888'}">${(d.predicted_zone_at_alert||'').toUpperCase()}</strong></span></div></div>`
+      :`<div class="fc-summary fc-safe"><div class="fc-icon">✅</div><strong>No ${thresh} alert expected in next 24 hours</strong></div>`
+    const tl=(d.full_24h_forecast||[]).map(h=>`<div class="tl-item" style="--zc:${zc[h.predicted_zone]||'#888'}"><div class="tl-hr">${h.hour}h</div><div class="tl-rain">🌧${(+h.precipitation).toFixed(1)}</div><div class="tl-zone" style="color:${zc[h.predicted_zone]||'#888'}">${h.predicted_zone}</div></div>`).join('')
+    document.getElementById('forecast-result').innerHTML=sum+`<div class="timeline">${tl}</div>`
+  }catch(e){
+    document.getElementById('forecast-result').innerHTML=`<div class="fc-summary" style="background:#fdf0ec;border-radius:10px;padding:1rem"><strong>⚠️ Forecast API unreachable.</strong><br><span style="font-size:.8rem;color:#888">${e.message}</span></div>`
+  }
+  if(btn){btn.textContent='▶ Run Forecast';btn.disabled=false}
+}
+
+/* ══ REROUTING ══ */
+let rmInit=false
+function initRouteMap(){
+  if(rmInit)return;rmInit=true
+  const rm=L.map('routeMap',{center:[25.5,92.5],zoom:7,zoomControl:false})
+  L.control.zoom({position:'bottomright'}).addTo(rm)
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'© CartoDB'}).addTo(rm)
+  REGIONS.forEach(r=>{L.circleMarker([r.lat,r.lon],{radius:7,fillColor:RC[r.risk],fillOpacity:.85,color:'#fff',weight:1.5}).addTo(rm)})
+  L.polyline([[25.30,91.70],[25.20,91.80]],{color:'#b83020',weight:6,dashArray:'8,5'}).bindTooltip('⛔ NH-6 BLOCKED').addTo(rm)
+  L.polyline([[27.59,91.86],[27.30,92.10]],{color:'#b83020',weight:6,dashArray:'8,5'}).bindTooltip('⛔ Tawang–Bomdila BLOCKED').addTo(rm)
+  L.polyline([[25.30,91.70],[25.45,91.55],[25.20,91.80]],{color:'#2d7a3a',weight:3,dashArray:'6,4'}).bindTooltip('✅ Alt Route A').addTo(rm)
+  L.polyline([[27.59,91.86],[27.45,92.20],[27.30,92.10]],{color:'#2d7a3a',weight:3,dashArray:'6,4'}).bindTooltip('✅ Alt Route B').addTo(rm)
+}
+document.getElementById('blk-body').innerHTML=BLOCKAGES.map(b=>`
+  <tr>
+    <td><strong>${b.road}</strong></td>
+    <td><span class="rpill ${b.st==='blocked'?'rblocked':b.st==='caution'?'rcaution':'rclear'}">${b.st==='blocked'?'⛔ Blocked':b.st==='caution'?'⚠️ Caution':'✅ Clear'}</span></td>
+    <td style="color:var(--muted);font-size:.75rem">${b.cause}</td>
+    <td>${b.st!=='clear'?`<button class="rbtn" onclick="alert('✅ Reroute: ${b.alt}\\nEst. delay: ${b.delay}')">Reroute</button>`:'<span style="color:#2d7a3a;font-size:.74rem;font-weight:700">No action</span>'}</td>
+  </tr>`).join('')
+document.getElementById('evac-routes').innerHTML=EVAC.map(e=>`
+  <div class="evac-card">
+    <div style="font-size:1.5rem">🚐</div>
+    <div style="flex:1;min-width:180px">
+      <div style="font-weight:800;margin-bottom:.25rem;color:var(--text)">${e.from} → ${e.to}</div>
+      <div style="font-size:.75rem;color:var(--muted)">Via: ${e.via}</div>
+    </div>
+    <div style="display:flex;gap:1.5rem;font-size:.8rem">
+      <div><div style="color:var(--muted);font-size:.67rem;text-transform:uppercase;font-weight:700">Distance</div><strong>${e.dist}</strong></div>
+      <div><div style="color:var(--muted);font-size:.67rem;text-transform:uppercase;font-weight:700">Est. Time</div><strong>${e.time}</strong></div>
+      <div><span class="rpill rclear">✅ Active</span></div>
+    </div>
+  </div>`).join('')
+
+/* ══ MESH ══ */
+let mInit=false
+function initMesh(){
+  if(mInit)return;mInit=true
+  drawCanvas()
+  document.getElementById('node-list').innerHTML=NODES.map(n=>`
+    <div class="node-item">
+      <span class="ndot ${n.st==='online'?'non':n.st==='relay'?'nrelay':'noff'}"></span>
+      <span><strong>${n.name}</strong> <span style="color:var(--muted);font-size:.67rem">${n.id}</span></span>
+      <span style="font-size:.68rem;font-weight:700;color:${n.bat>50?'#2d7a3a':n.bat>20?'#c07a10':'#b83020'}">🔋${n.bat}%</span>
+      <span class="nrole">${n.role}</span>
+    </div>`).join('')
+  document.getElementById('msg-feed').innerHTML=MSGS.map(m=>`
+    <div class="msg-item">
+      <span style="font-size:1rem">${m.hops===0?'📶':m.hops<=2?'📡':'🔁'}</span>
+      <div style="flex:1"><div>${m.t}</div><div style="font-size:.65rem;color:var(--muted);margin-top:.1rem">From: ${m.from}</div></div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.2rem">
+        <span class="msg-time">${m.time}</span>
+        ${m.hops>0?`<span class="msg-hop">${m.hops} hop${m.hops>1?'s':''}</span>`:''}
+      </div>
+    </div>`).join('')
+  setInterval(()=>{
+    const pool=['Sensor ping','Rainfall data synced to PG','Alert ACK received','Battery update broadcast','Risk prediction relayed']
+    const feed=document.getElementById('msg-feed')
+    if(!feed)return
+    const d=document.createElement('div');d.className='msg-item'
+    d.innerHTML=`<span style="font-size:1rem">📡</span><div style="flex:1"><div>${pool[Math.floor(Math.random()*pool.length)]}</div><div style="font-size:.65rem;color:var(--muted);margin-top:.1rem">From: NODE-0${Math.ceil(Math.random()*8)}</div></div><span class="msg-time">${new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</span>`
+    feed.prepend(d);if(feed.children.length>10)feed.lastChild.remove()
+  },4000)
+}
+function drawCanvas(){
+  const cv=document.getElementById('meshCanvas')
+  const W=cv.offsetWidth,H=cv.offsetHeight;cv.width=W;cv.height=H
+  const ctx=cv.getContext('2d')
+  const nodes=[
+    {x:.15,y:.2,s:'online'},{x:.45,y:.12,s:'relay'},{x:.75,y:.25,s:'online'},
+    {x:.25,y:.5,s:'relay'},{x:.55,y:.45,s:'online'},{x:.82,y:.55,s:'offline'},
+    {x:.35,y:.78,s:'online'},{x:.65,y:.75,s:'relay'},{x:.88,y:.82,s:'online'},
+  ]
+  const edges=[[0,1],[1,2],[0,3],[1,3],[1,4],[2,4],[3,6],[4,7],[7,8],[4,5],[2,5]]
+  const sc={online:'#2d7a3a',relay:'#c07a10',offline:'#b83020'}
+  function draw(){
+    ctx.clearRect(0,0,W,H)
+    edges.forEach(([a,b])=>{
+      const na=nodes[a],nb=nodes[b],ok=na.s!=='offline'&&nb.s!=='offline'
+      ctx.beginPath();ctx.moveTo(na.x*W,na.y*H);ctx.lineTo(nb.x*W,nb.y*H)
+      ctx.strokeStyle=ok?'#c0541a50':'#b8302030';ctx.lineWidth=ok?2:1
+      ctx.setLineDash(ok?[]:[4,4]);ctx.stroke();ctx.setLineDash([])
+    })
+    nodes.forEach((n,i)=>{
+      const x=n.x*W,y=n.y*H,c=sc[n.s]
+      if(n.s!=='offline'){ctx.beginPath();ctx.arc(x,y,18,0,Math.PI*2);ctx.fillStyle=c+'18';ctx.fill()}
+      ctx.beginPath();ctx.arc(x,y,9,0,Math.PI*2);ctx.fillStyle=c;ctx.fill()
+      ctx.beginPath();ctx.arc(x,y,9,0,Math.PI*2);ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke()
+      ctx.fillStyle='#2c1f0e';ctx.font='bold 9px Inter,sans-serif';ctx.textAlign='center'
+      ctx.fillText(`N${i+1}`,x,y+22)
+    })
+  }
+  draw()
+  let t=0
+  setInterval(()=>{
+    draw();t+=.025
+    edges.forEach(([a,b])=>{
+      if(nodes[a].s==='offline'||nodes[b].s==='offline')return
+      const na=nodes[a],nb=nodes[b],p=(Math.sin(t+a+b)+1)/2
+      const px=na.x*W+(nb.x-na.x)*W*p,py=na.y*H+(nb.y-na.y)*H*p
+      ctx.beginPath();ctx.arc(px,py,5,0,Math.PI*2)
+      ctx.fillStyle='#c0541a';ctx.fill()
+      ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke()
+    })
+  },50)
+}
+function sendMesh(){
+  const zone=document.getElementById('mesh-target').value
+  const msg=document.getElementById('mesh-msg').value
+  document.getElementById('mesh-result').innerHTML=`
+    <div style="background:#f2faf4;border:1.5px solid #90d0b0;border-radius:10px;padding:.85rem;font-size:.78rem;animation:fsld .3s ease">
+      <strong style="color:#1a5228">✓ Alert broadcast via Bluetooth mesh network</strong><br>
+      <span style="color:var(--muted)">Target: ${zone}<br>Estimated hops: 3 · Devices reached: ~47 · Delivery: &lt;2s</span>
+    </div>`
+  const feed=document.getElementById('msg-feed')
+  if(feed){
+    const d=document.createElement('div');d.className='msg-item'
+    d.innerHTML=`<span>🚨</span><div style="flex:1"><div><strong>BROADCAST:</strong> ${msg}</div><div style="font-size:.65rem;color:var(--muted);margin-top:.1rem">${zone}</div></div><span class="msg-time">Now</span><span class="msg-hop">3 hops</span>`
+    feed.prepend(d)
+  }
+}
+
+/* ══ FIELD REPORTS ══ */
+function initReports(){
+  const ti={crack:'🪨',blocked_road:'🚧',landslide_occurred:'🏔️',flooding:'🌊',infrastructure_damage:'🏗️',other:'📌'}
+  const tn={crack:'Crack Observed',blocked_road:'Road Blocked',landslide_occurred:'Landslide',flooding:'Flooding',infrastructure_damage:'Infrastructure Damage',other:'Other'}
+  const sc={high:'#b83020',medium:'#c07a10',low:'#2d7a3a'}
+  document.getElementById('rep-grid').innerHTML=REPORTS.map(r=>`
+    <div class="rep-card" style="border-left:4px solid ${sc[r.sev]||'#c0541a'}">
+      <div class="rc-hdr">
+        <span class="rc-icon">${ti[r.type]||'📌'}</span>
+        <div><div class="rc-dist">${r.d}</div><div style="font-size:.7rem;color:var(--muted);font-weight:600">${tn[r.type]||r.type}</div></div>
+        <span class="rc-time">${r.time}</span>
+      </div>
+      <div class="rc-desc">${r.desc}</div>
+      <div class="rc-foot">
+        <span class="sev-pill" style="background:${sc[r.sev]||'#c0541a'}">${r.sev.toUpperCase()}</span>
+        <span class="rep-reporter">👤 ${r.rep}</span>
+        ${r.v?'<span class="verified">✓ Verified</span>':'<span style="font-size:.68rem;color:#c07a10;font-weight:700">⏳ Pending</span>'}
+      </div>
+    </div>`).join('')
+}
+
+/* ══ REFRESH ══ */
+function refreshAll(){
+  document.querySelectorAll('.stat-num').forEach(el=>{el.style.animation='none';void el.offsetWidth;el.style.animation='fsld .4s ease'})
+}
+
+/* ══ INIT ══ */
+window.onload=()=>{runPrediction();runForecast();initReports()}
+</script>
+</body>
+</html>
